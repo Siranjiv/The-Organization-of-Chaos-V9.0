@@ -7,41 +7,28 @@ using UnityEngine.Windows.Speech;
 
 public class VoiceRecognition : MonoBehaviour
 {
-
-    //Player Movement Variables
-    [SerializeField]
-    private float moveForce = 8f;
-
-    private bool isFacingRight = true;
-    private bool isFacingLeft = false;
-
-    [SerializeField]
-    private Rigidbody2D myBody;
-
-    private Transform Tr;
-
-    private SpriteRenderer sr;
-
-    private Animator anim;
-
-    private bool isGrounded = true;
-
-    private string GROUND_TAG = "Ground";
-    private string ENEMY_TAG = "Enemy";
-
-
-    private string WALK_ANIMATION = "walk";
-    private string JUMP_ANIMATION = "jump";
-
-    //Shooting Variables
+    [SerializeField] private float moveForce = 8f;
+    [SerializeField] private Rigidbody2D myBody;
     public Transform firePoint;
     public GameObject bulletPrefab;
 
-    //Voice_Recognition_Variables
+    private SpriteRenderer sr;
+    private Animator anim;
+
+    private bool isFacingRight = true;
+    private bool isFacingLeft = false;
+    private bool isGrounded = true;
+
+    private bool isMovingLeft = false;
+    private bool isMovingRight = false;
+
     private KeywordRecognizer keywordRecognizer;
     private Dictionary<string, Action> actions = new Dictionary<string, Action>();
 
-
+    private const string GROUND_TAG = "Ground";
+    private const string ENEMY_TAG = "Enemy";
+    private const string WALK_ANIMATION = "walk";
+    private const string JUMP_ANIMATION = "jump";
 
     private void Awake()
     {
@@ -54,130 +41,122 @@ public class VoiceRecognition : MonoBehaviour
     {
         myBody.AddForce(new Vector2(2, 2));
 
-        // Only create the recognizer if it's not already running
         if (keywordRecognizer != null)
         {
-            Debug.LogWarning("KeywordRecognizer already exists! Disposing old one.");
             keywordRecognizer.Stop();
             keywordRecognizer.Dispose();
             keywordRecognizer = null;
         }
 
-        actions.Add("left", Left);
+        actions.Add("left", () => StartMoveLeft());
+        actions.Add("right", () => StartMoveRight());
+        actions.Add("stop", StopMovement);
         actions.Add("jump", Jump);
-        actions.Add("right", Right);
         actions.Add("shoot", Shoot);
 
-        //Pass all the actions as a array of strings
         keywordRecognizer = new KeywordRecognizer(actions.Keys.ToArray());
-        //Recognize the Speech phrase
         keywordRecognizer.OnPhraseRecognized += RecognizedSpeech;
         keywordRecognizer.Start();
-
         Debug.Log("Voice recognition started.");
     }
 
     private void RecognizedSpeech(PhraseRecognizedEventArgs speech)
     {
-
-        Debug.Log(speech.text);
-        actions[speech.text].Invoke();
+        Debug.Log($"Heard: {speech.text}");
+        if (actions.ContainsKey(speech.text))
+            actions[speech.text].Invoke();
     }
 
-    //Voice Recognition Movements
-    private void Left() {
+    private void Update()
+    {
+        HandleContinuousMovement();
 
-       
-        transform.Translate(2, 0, 0);
-
-        anim.SetBool(JUMP_ANIMATION, false);
-        anim.SetBool(WALK_ANIMATION, true);
-
-
-        if (isFacingLeft == true)
+        if (isGrounded)
         {
+            anim.SetBool(JUMP_ANIMATION, false);
+        }
+    }
 
-            transform.Rotate(0f, 0f, 0f);
-            isFacingLeft = true;
-            isFacingRight = false;
+    private void HandleContinuousMovement()
+    {
+        Vector3 moveDirection = Vector3.zero;
+
+        if (isMovingLeft)
+        {
+            moveDirection = Vector3.left;
+
+            if (!isFacingLeft)
+            {
+                transform.localRotation = Quaternion.Euler(0, 180f, 0);
+                isFacingLeft = true;
+                isFacingRight = false;
+            }
+
+            anim.SetBool(WALK_ANIMATION, true);
+        }
+        else if (isMovingRight)
+        {
+            moveDirection = Vector3.right;
+
+            if (!isFacingRight)
+            {
+                transform.localRotation = Quaternion.Euler(0, 0f, 0);
+                isFacingRight = true;
+                isFacingLeft = false;
+            }
+
+            anim.SetBool(WALK_ANIMATION, true);
         }
         else
         {
-            transform.Rotate(0f, 180f, 0f);
-            isFacingLeft = true;
-            isFacingRight = false;
-
+            anim.SetBool(WALK_ANIMATION, false);
         }
 
+        // Apply movement
+        transform.position += moveDirection * moveForce * Time.deltaTime;
+    }
 
+    private void StartMoveLeft()
+    {
+        isMovingLeft = true;
+        isMovingRight = false;
+    }
 
+    private void StartMoveRight()
+    {
+        isMovingRight = true;
+        isMovingLeft = false;
+    }
+
+    private void StopMovement()
+    {
+        isMovingLeft = false;
+        isMovingRight = false;
     }
 
     private void Jump()
     {
-
-        if (isGrounded) 
+        if (isGrounded)
         {
-
-
             isGrounded = false;
             myBody.AddForce(new Vector2(0f, 10f), ForceMode2D.Impulse);
             anim.SetBool(JUMP_ANIMATION, true);
-
-
         }
-
-
     }
 
-    private void Right()
-    {
-
-
-         transform.Translate(2, 0, 0);
-
-
-        anim.SetBool(JUMP_ANIMATION, false);
-        
-
-        if (isFacingRight == true)
-        {
-
-            transform.Rotate(0f, 0f, 0f);
-            isFacingRight = true;
-            isFacingLeft = false;
-        }
-        else
-        {
-            transform.Rotate(0f, 180f, 0f);
-            isFacingRight = true;
-            isFacingLeft = false;
-
-        }
-
-        //Animation
-        anim.SetBool(WALK_ANIMATION, true);
-
-
-    }
     private void Shoot()
     {
-   
-            Instantiate(bulletPrefab, firePoint.position, firePoint.rotation);
-
+        Instantiate(bulletPrefab, firePoint.position, firePoint.rotation);
     }
-
 
     private void OnCollisionEnter2D(Collision2D collision)
     {
         if (collision.gameObject.CompareTag(GROUND_TAG))
             isGrounded = true;
 
-
         if (collision.gameObject.CompareTag(ENEMY_TAG))
             Destroy(gameObject);
     }
-
 
     private void OnTriggerEnter2D(Collider2D collision)
     {
@@ -192,8 +171,8 @@ public class VoiceRecognition : MonoBehaviour
             keywordRecognizer.Stop();
             keywordRecognizer.Dispose();
             keywordRecognizer = null;
-            Debug.Log("Voice recognition stopped and disposed.");
+            Debug.Log("Voice recognition stopped.");
         }
     }
-
 }
+

@@ -47,14 +47,15 @@ public class FaceController : MonoBehaviour
 
     //OpenCV variables
     [SerializeField]
-    FaceDetection faceDetection;
+    private FaceDetection faceDetection;
 
     // Start is called before the first frame update
-    float speed = 5f;
+    private float speed = 5f;
 
     //The Average coodinates of x and y axis in the frame
-    float lastY = 125f;
-    float lastX = 500f;
+    private float lastY = 125f;
+    private float lastX = 500f;
+    private float smoothedFaceX;
 
 
     private void Awake()
@@ -67,86 +68,78 @@ public class FaceController : MonoBehaviour
     {
         myBody.AddForce(new Vector2(2, 2));
         faceDetection = (FaceDetection)FindObjectOfType(typeof(FaceDetection));
+        smoothedFaceX = lastX;
     }
 
     // Update is called once per frame
     void Update()
     {
 
-
-        playerMove();
+        SmoothFaceInput();
         AnimatePlayer();
         PlayerJump();
-        Shoot();
-        
+        Shoot();       
     
     }
 
+    void FixedUpdate()
+    {
+        playerMove(); // Use physics movement here
+    }
+
+    void SmoothFaceInput()
+    {
+        // Smooths the face detection input to reduce jitter
+        smoothedFaceX = Mathf.Lerp(smoothedFaceX, faceDetection.faceX, Time.deltaTime * 5f);
+    }
     void playerMove()
     {
+        // Scale down face movement and clamp
+        float normX = Mathf.Clamp((lastX - smoothedFaceX) / 100f, -1f, 1f);
 
-        //To get the needed record of the frame
-        float normX = Mathf.Clamp(lastX-faceDetection.faceX, -1, 1);
+        // Calculate target movement
+        Vector2 targetPos = myBody.position + new Vector2(normX * moveForce * Time.fixedDeltaTime, 0f);
 
-        transform.position += new Vector3(normX, 0f, 0f) * Time.deltaTime * moveForce;
-        
+        // Clamp movement within screen bounds (adjust -8f and 8f to fit your level)
+        float clampedX = Mathf.Clamp(targetPos.x, -8f, 8f);
+        targetPos = new Vector2(clampedX, targetPos.y);
+
+        myBody.MovePosition(targetPos);
+
     }
 
     void AnimatePlayer()
     {
-        float normX = Mathf.Clamp(lastX - faceDetection.faceX, -1, 1);
+        float normX = Mathf.Clamp((lastX - smoothedFaceX) / 100f, -1f, 1f);
 
-        //we are going to the right side
         if (normX > 0)
         {
             anim.SetBool(WALK_ANIMATION, true);
             anim.SetBool(JUMP_ANIMATION, false);
 
-
-
-            if (isFacingRight == true)
-            {
-
-                transform.Rotate(0f, 0f, 0f);
-                isFacingRight = true;
-                isFacingLeft = false;
-            }
-            else
+            if (!isFacingRight)
             {
                 transform.Rotate(0f, 180f, 0f);
                 isFacingRight = true;
                 isFacingLeft = false;
-
             }
         }
-        else if (normX < 0)//we are going to the left
+        else if (normX < 0)
         {
             anim.SetBool(WALK_ANIMATION, true);
             anim.SetBool(JUMP_ANIMATION, false);
 
-
-            if (isFacingLeft == true)
-            {
-
-                transform.Rotate(0f, 0f, 0f);
-                isFacingLeft = true;
-                isFacingRight = false;
-            }
-            else
+            if (!isFacingLeft)
             {
                 transform.Rotate(0f, 180f, 0f);
                 isFacingLeft = true;
                 isFacingRight = false;
-
             }
         }
         else
         {
             anim.SetBool(WALK_ANIMATION, false);
         }
-
-
-
     }
 
     void PlayerJump()
@@ -154,19 +147,22 @@ public class FaceController : MonoBehaviour
         float normY = Mathf.Clamp(lastY - faceDetection.faceY, -1, 1);
         Debug.Log(normY);
 
-
         if (normY > 0 && isGrounded)
         {
-
-
             isGrounded = false;
             myBody.AddForce(new Vector2(0f, jumpForce), ForceMode2D.Impulse);
             anim.SetBool(JUMP_ANIMATION, true);
-
-
         }
-        
+    }
 
+    void Shoot()
+    {
+        float normY = Mathf.Clamp(lastY - faceDetection.faceY, -1, 1);
+
+        if (normY < 0)
+        {
+            Instantiate(bulletPrefab, firePoint.position, firePoint.rotation);
+        }
     }
 
     private void OnCollisionEnter2D(Collision2D collision)
@@ -185,17 +181,5 @@ public class FaceController : MonoBehaviour
         if (collision.CompareTag(ENEMY_TAG))
             Destroy(gameObject);
     }
-
-
-    void Shoot()
-    {
-        float normY = Mathf.Clamp(lastY - faceDetection.faceY, -1, 1);
-
-        if (normY < 0)
-        {
-            Instantiate(bulletPrefab, firePoint.position, firePoint.rotation);
-        }
-    }
-
 
 }
