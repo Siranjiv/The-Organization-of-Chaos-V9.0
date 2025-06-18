@@ -4,26 +4,15 @@ using UnityEngine;
 
 public class FaceController : MonoBehaviour
 {
-    //Player moving script variable reference
-
+    // Movement force values
     [SerializeField]
     private float moveForce = 8f;
-
     [SerializeField]
     private float jumpForce = 5f;
 
-    private float movementX;
-    private float normX;
-    private float normY;
-    //private float movementY;
-
     [SerializeField]
     private Rigidbody2D myBody;
-
-    private Transform Tr;
-
     private SpriteRenderer sr;
-
     private Animator anim;
 
     private bool isGrounded = true;
@@ -31,32 +20,30 @@ public class FaceController : MonoBehaviour
     private string GROUND_TAG = "Ground";
     private string ENEMY_TAG = "Enemy";
 
-
     private string WALK_ANIMATION = "walk";
     private string JUMP_ANIMATION = "jump";
 
-
-
     private bool isFacingRight = true;
-    private bool isFacingLeft = false;
 
-    //Shooting variables
+    // Shooting variables
     public Transform firePoint;
     public GameObject bulletPrefab;
 
-
-    //OpenCV variables
+    // OpenCV variables
     [SerializeField]
     private FaceDetection faceDetection;
 
-    // Start is called before the first frame update
-    private float speed = 5f;
+    // Thresholds to avoid jittery movement
+    private float moveThreshold = 15f;
+    private float jumpThreshold = 20f;
 
-    //The Average coodinates of x and y axis in the frame
-    private float lastY = 125f;
-    private float lastX = 500f;
+    // Smoothing for face input
     private float smoothedFaceX;
+    private float smoothedFaceY;
 
+    // Reference values (initial average face position)
+    private float neutralX = 500f;
+    private float neutralY = 125f;
 
     private void Awake()
     {
@@ -64,76 +51,51 @@ public class FaceController : MonoBehaviour
         anim = GetComponent<Animator>();
         sr = GetComponent<SpriteRenderer>();
     }
+
     void Start()
     {
-        myBody.AddForce(new Vector2(2, 2));
-        faceDetection = (FaceDetection)FindObjectOfType(typeof(FaceDetection));
-        smoothedFaceX = lastX;
+        smoothedFaceX = neutralX;
+        smoothedFaceY = neutralY;
+
+        faceDetection = FindObjectOfType<FaceDetection>();
     }
 
-    // Update is called once per frame
     void Update()
     {
-
-        SmoothFaceInput();
-        AnimatePlayer();
-        PlayerJump();
-        Shoot();       
-    
+        SmoothFaceInput(); // Smooth face data to reduce jitter
+        HandleJump();      // Handle upward head movement as jump
+        HandleShoot();     // Handle downward head movement as shoot
     }
 
     void FixedUpdate()
     {
-        playerMove(); // Use physics movement here
+        HandleMovement();  // Physics-based movement should go in FixedUpdate
     }
 
     void SmoothFaceInput()
     {
         // Smooths the face detection input to reduce jitter
         smoothedFaceX = Mathf.Lerp(smoothedFaceX, faceDetection.faceX, Time.deltaTime * 5f);
-    }
-    void playerMove()
-    {
-        // Scale down face movement and clamp
-        float normX = Mathf.Clamp((lastX - smoothedFaceX) / 100f, -1f, 1f);
-
-        // Calculate target movement
-        Vector2 targetPos = myBody.position + new Vector2(normX * moveForce * Time.fixedDeltaTime, 0f);
-
-        // Clamp movement within screen bounds (adjust -8f and 8f to fit your level)
-        float clampedX = Mathf.Clamp(targetPos.x, -8f, 8f);
-        targetPos = new Vector2(clampedX, targetPos.y);
-
-        myBody.MovePosition(targetPos);
-
+        smoothedFaceY = Mathf.Lerp(smoothedFaceY, faceDetection.faceY, Time.deltaTime * 5f);
     }
 
-    void AnimatePlayer()
+    void HandleMovement()
     {
-        float normX = Mathf.Clamp((lastX - smoothedFaceX) / 100f, -1f, 1f);
+        float deltaX = smoothedFaceX - neutralX;
 
-        if (normX > 0)
+        if (Mathf.Abs(deltaX) > moveThreshold)
         {
-            anim.SetBool(WALK_ANIMATION, true);
-            anim.SetBool(JUMP_ANIMATION, false);
+            float direction = Mathf.Sign(deltaX);
+            Vector2 newPosition = myBody.position + new Vector2(direction * moveForce * Time.fixedDeltaTime, 0f);
+            myBody.MovePosition(newPosition); // Let physics handle collisions
 
-            if (!isFacingRight)
-            {
-                transform.Rotate(0f, 180f, 0f);
-                isFacingRight = true;
-                isFacingLeft = false;
-            }
-        }
-        else if (normX < 0)
-        {
+            // Animate walking
             anim.SetBool(WALK_ANIMATION, true);
-            anim.SetBool(JUMP_ANIMATION, false);
 
-            if (!isFacingLeft)
+            // Flip sprite based on direction
+            if ((direction > 0 && !isFacingRight) || (direction < 0 && isFacingRight))
             {
-                transform.Rotate(0f, 180f, 0f);
-                isFacingLeft = true;
-                isFacingRight = false;
+                Flip();
             }
         }
         else
@@ -142,27 +104,38 @@ public class FaceController : MonoBehaviour
         }
     }
 
-    void PlayerJump()
+    void HandleJump()
     {
-        float normY = Mathf.Clamp(lastY - faceDetection.faceY, -1, 1);
-        Debug.Log(normY);
+        float deltaY = neutralY - smoothedFaceY; // Head going up means jump
 
-        if (normY > 0 && isGrounded)
+        if (deltaY > jumpThreshold && isGrounded)
         {
             isGrounded = false;
             myBody.AddForce(new Vector2(0f, jumpForce), ForceMode2D.Impulse);
             anim.SetBool(JUMP_ANIMATION, true);
         }
+        else if (isGrounded)
+        {
+            anim.SetBool(JUMP_ANIMATION, false);
+        }
     }
 
-    void Shoot()
+    void HandleShoot()
     {
-        float normY = Mathf.Clamp(lastY - faceDetection.faceY, -1, 1);
+        float deltaY = smoothedFaceY - neutralY; // Head going down means shoot
 
-        if (normY < 0)
+        if (deltaY > jumpThreshold)
         {
             Instantiate(bulletPrefab, firePoint.position, firePoint.rotation);
         }
+    }
+
+    void Flip()
+    {
+        isFacingRight = !isFacingRight;
+        Vector3 scale = transform.localScale;
+        scale.x *= -1;
+        transform.localScale = scale;
     }
 
     private void OnCollisionEnter2D(Collision2D collision)
@@ -170,16 +143,13 @@ public class FaceController : MonoBehaviour
         if (collision.gameObject.CompareTag(GROUND_TAG))
             isGrounded = true;
 
-
         if (collision.gameObject.CompareTag(ENEMY_TAG))
             Destroy(gameObject);
     }
-
 
     private void OnTriggerEnter2D(Collider2D collision)
     {
         if (collision.CompareTag(ENEMY_TAG))
             Destroy(gameObject);
     }
-
 }
