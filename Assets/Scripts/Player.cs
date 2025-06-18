@@ -72,6 +72,19 @@ public class Player : MonoBehaviour
 
     }
 
+    //New Method to flip the character
+    void Flip()
+    {
+        isFacingRight = !isFacingRight;
+        isFacingLeft = !isFacingLeft;
+
+        Vector3 scale = transform.localScale;
+        scale.x *= -1;
+        transform.localScale = scale;
+    }
+
+
+
     //The Character Animation when moving
     void AnimatePlayer() {
 
@@ -82,28 +95,40 @@ public class Player : MonoBehaviour
             anim.SetBool(WALK_ANIMATION, true);
             anim.SetBool(JUMP_ANIMATION, false);
 
-
-            //if the chatacter is facing right there won't be any rotation
-            if (isFacingRight == true)
+            if (!isFacingRight)
             {
+                Flip(); // Flip to the right
+            }
 
-                transform.Rotate(0f, 0f, 0f);
-                isFacingRight = true;
-                isFacingLeft = false;
-            }
-            else   //if the chatacter isn't facing right there will be any rotation
-            {
-                transform.Rotate(0f, 180f, 0f);
-                isFacingRight = true;
-                isFacingLeft = false;
-            
-            }
+            #region Old Code to rotate the character instead of flipping
+            ////if the chatacter is facing right there won't be any rotation
+            //if (isFacingRight == true)
+            //{
+
+            //    transform.Rotate(0f, 0f, 0f);
+            //    isFacingRight = true;
+            //    isFacingLeft = false;
+            //}
+            //else   //if the chatacter isn't facing right there will be any rotation
+            //{
+            //    transform.Rotate(0f, 180f, 0f);
+            //    isFacingRight = true;
+            //    isFacingLeft = false;
+
+            //}
+            #endregion
         }
         else if (movementX < 0)//if the chatacter going to the left
         {
             anim.SetBool(WALK_ANIMATION, true);
             anim.SetBool(JUMP_ANIMATION, false);
 
+            if (!isFacingLeft)
+            {
+                Flip(); // Flip to the left
+            }
+
+            #region Old Code to rotate the character instead of flipping
             //if the chatacter is facing left there won't be any rotation
             if (isFacingLeft == true)
             {
@@ -119,7 +144,10 @@ public class Player : MonoBehaviour
                 isFacingRight = false;
 
             }
-        }else 
+
+            #endregion
+        }
+        else 
         {
             anim.SetBool(WALK_ANIMATION, false);
         }

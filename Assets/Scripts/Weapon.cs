@@ -19,7 +19,16 @@ public class Weapon : MonoBehaviour
 
     void Shoot()
     {
+        float direction = transform.root.localScale.x > 0 ? 1f : -1f;
+
+        // Rotate the bullet if facing left
+        Quaternion bulletRotation = direction > 0 ? Quaternion.identity : Quaternion.Euler(0f, 0f, 180f);
+
+        GameObject bullet = Instantiate(bulletPrefab, firePoint.position, bulletRotation);
+
+        #region Old Code to instantiate the bullet at the player position instead of firepoint position
         //this references the bullet object and the firepoint posistion and rotation of referencing the player
-        Instantiate(bulletPrefab, firePoint.position, firePoint.rotation);
+        //Instantiate(bulletPrefab, firePoint.position, firePoint.rotation);
+        #endregion
     }
 }

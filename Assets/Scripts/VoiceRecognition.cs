@@ -54,6 +54,15 @@ public class VoiceRecognition : MonoBehaviour
     {
         myBody.AddForce(new Vector2(2, 2));
 
+        // Only create the recognizer if it's not already running
+        if (keywordRecognizer != null)
+        {
+            Debug.LogWarning("KeywordRecognizer already exists! Disposing old one.");
+            keywordRecognizer.Stop();
+            keywordRecognizer.Dispose();
+            keywordRecognizer = null;
+        }
+
         actions.Add("left", Left);
         actions.Add("jump", Jump);
         actions.Add("right", Right);
@@ -65,6 +74,7 @@ public class VoiceRecognition : MonoBehaviour
         keywordRecognizer.OnPhraseRecognized += RecognizedSpeech;
         keywordRecognizer.Start();
 
+        Debug.Log("Voice recognition started.");
     }
 
     private void RecognizedSpeech(PhraseRecognizedEventArgs speech)
@@ -175,6 +185,15 @@ public class VoiceRecognition : MonoBehaviour
             Destroy(gameObject);
     }
 
-
+    private void OnDisable()
+    {
+        if (keywordRecognizer != null && keywordRecognizer.IsRunning)
+        {
+            keywordRecognizer.Stop();
+            keywordRecognizer.Dispose();
+            keywordRecognizer = null;
+            Debug.Log("Voice recognition stopped and disposed.");
+        }
+    }
 
 }
